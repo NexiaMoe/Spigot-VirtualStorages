@@ -3,14 +3,13 @@ package net.duart.virtualstorage.commands;
 import net.duart.virtualstorage.VirtualStorages;
 import net.duart.virtualstorage.listener.VirtualBackpack;
 import net.duart.virtualstorage.util.Messages;
-import net.md_5.bungee.api.ChatColor;
+import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 
-import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -25,7 +24,7 @@ public class CommandManager implements CommandExecutor, TabCompleter {
     }
 
     @Override
-    public boolean onCommand(@Nonnull CommandSender sender,@Nonnull Command command,@Nonnull String label,@Nonnull String[] args) {
+    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (command.getName().equalsIgnoreCase("backpack")) {
             if (!(sender instanceof Player player)) {
                 sender.sendMessage(ChatColor.RED + "This command can only be executed by a player.");
@@ -83,7 +82,7 @@ public class CommandManager implements CommandExecutor, TabCompleter {
     }
 
     @Override
-    public List<String> onTabComplete(@Nonnull CommandSender sender, @Nonnull Command command, @Nonnull String alias, @Nonnull String[] args) {
+    public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
 
         List<String> completions = new ArrayList<>();
 

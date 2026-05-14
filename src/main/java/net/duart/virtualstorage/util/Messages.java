@@ -3,7 +3,6 @@ package net.duart.virtualstorage.util;
 import org.bukkit.ChatColor;
 import org.bukkit.configuration.file.FileConfiguration;
 
-import javax.annotation.Nonnull;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -34,7 +33,7 @@ public class Messages {
         }
     }
 
-    public static String get(@Nonnull String path, Object... replacements) {
+    public static String get(String path, Object... replacements) {
         String raw = cache.get(path);
 
         if (raw == null) {
@@ -48,7 +47,7 @@ public class Messages {
         return raw;
     }
 
-    private static String getDefault(@Nonnull String path) {
+    private static String getDefault(String path) {
         return switch (path) {
             case "title" -> "&9◆ Backpack - Page %page% of %maxpages% ◆";
             case "prevArrow" -> "&c<< Previous page";

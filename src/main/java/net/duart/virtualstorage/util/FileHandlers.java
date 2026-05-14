@@ -14,7 +14,6 @@ import org.bukkit.plugin.Plugin;
 import org.bukkit.util.io.BukkitObjectInputStream;
 import org.bukkit.util.io.BukkitObjectOutputStream;
 
-import javax.annotation.Nonnull;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
@@ -38,7 +37,7 @@ public class FileHandlers {
 
     /* REGULAR SAVING */
 
-    public void saveBackpackInventory(@Nonnull Player player, @Nonnull UUID playerId, @Nonnull ArrayList<Inventory> pages) {
+    public void saveBackpackInventory(Player player, UUID playerId, ArrayList<Inventory> pages) {
         savePlayerBackpackAtomic(player.getName(), playerId, pages);
     }
 
@@ -65,7 +64,7 @@ public class FileHandlers {
         }
     }
 
-    private void savePlayerBackpackAtomic(String playerName, UUID playerId, @Nonnull ArrayList<Inventory> pages) {
+    private void savePlayerBackpackAtomic(String playerName, UUID playerId, ArrayList<Inventory> pages) {
         File playerFile = new File(plugin.getDataFolder(), playerName + " - " + playerId + ".yml.gz");
         File tempFile = new File(plugin.getDataFolder(), playerName + " - " + playerId + ".tmp.yml.gz");
 
@@ -122,7 +121,7 @@ public class FileHandlers {
         }
     }
 
-    public BackpackData loadBackpackData(UUID playerId, @Nonnull File file) {
+    public BackpackData loadBackpackData(UUID playerId, File file) {
         Map<Integer, Map<Integer, ItemStack>> pagesData = new HashMap<>();
         int storedPageCount = 0;
 
@@ -183,7 +182,7 @@ public class FileHandlers {
 
     /* OVERFLOW */
 
-    public void saveOverflowItems(UUID playerId, @Nonnull List<ItemStack> overflowItems) {
+    public void saveOverflowItems(UUID playerId, List<ItemStack> overflowItems) {
         if (overflowItems.isEmpty()) return;
 
         File overflowFile = new File(plugin.getDataFolder(), playerId + "-overflow-" + ".yml.gz");

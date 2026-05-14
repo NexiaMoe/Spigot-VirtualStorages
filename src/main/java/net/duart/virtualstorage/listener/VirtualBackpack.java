@@ -17,8 +17,6 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.Plugin;
 
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -54,7 +52,7 @@ public class VirtualBackpack implements Listener {
     }
 
     /* OPEN BACKPACK HANDLERS */
-    public void openBackpack(@Nonnull Player player) {
+    public void openBackpack(Player player) {
         UUID playerId = player.getUniqueId();
 
         if (isBackpackOpen(playerId)) {
@@ -197,7 +195,7 @@ public class VirtualBackpack implements Listener {
 
     /* EVENTS */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
-    public void onInventoryClick(@Nonnull InventoryClickEvent event) {
+    public void onInventoryClick(InventoryClickEvent event) {
         Player player = (Player) event.getWhoClicked();
         UUID playerId = player.getUniqueId();
         Inventory clickedInventory = event.getClickedInventory();
@@ -247,7 +245,7 @@ public class VirtualBackpack implements Listener {
     }
 
     @EventHandler
-    public void onInventoryClose(@Nonnull InventoryCloseEvent event) {
+    public void onInventoryClose(InventoryCloseEvent event) {
         Player player = (Player) event.getPlayer();
         UUID playerId = player.getUniqueId();
         Inventory closedInventory = event.getInventory();
@@ -332,7 +330,7 @@ public class VirtualBackpack implements Listener {
     }
 
     @EventHandler
-    public void onPlayerQuit(@Nonnull org.bukkit.event.player.PlayerQuitEvent event) {
+    public void onPlayerQuit(org.bukkit.event.player.PlayerQuitEvent event) {
         Player player = event.getPlayer();
         UUID playerId = player.getUniqueId();
 
@@ -362,7 +360,7 @@ public class VirtualBackpack implements Listener {
     }
 
     /* PERMISSION & STATE MANAGEMENT */
-    private void ensurePageCountMatchesPermissions(UUID playerId, @Nonnull ArrayList<Inventory> pages, boolean isAdmin) {
+    private void ensurePageCountMatchesPermissions(UUID playerId, ArrayList<Inventory> pages, boolean isAdmin) {
         int allowedPages = getMaxPages(playerId);
         int currentPages = pages.size();
 
@@ -520,7 +518,7 @@ public class VirtualBackpack implements Listener {
         return backpacks.computeIfAbsent(playerId, k -> createNewBackpackPages(maxPages));
     }
 
-    @Nonnull private ArrayList<Inventory> createNewBackpackPages(int maxPages) {
+    private ArrayList<Inventory> createNewBackpackPages(int maxPages) {
         ArrayList<Inventory> pages = new ArrayList<>();
         for (int i = 0; i < maxPages; i++) {
             Inventory page = Bukkit.createInventory(null, INVENTORY_SIZE, buildTitle(i + 1, maxPages));
@@ -531,7 +529,7 @@ public class VirtualBackpack implements Listener {
         return pages;
     }
 
-    private int findFirstFreeNonNavSlot(@Nonnull Inventory inv, boolean allowSlot53IfOccupied) {
+    private int findFirstFreeNonNavSlot(Inventory inv, boolean allowSlot53IfOccupied) {
         for (int slot = 0; slot < inv.getSize(); slot++) {
             if (slot == NAV_PREV_SLOT) continue;
 
@@ -551,7 +549,7 @@ public class VirtualBackpack implements Listener {
         return -1;
     }
 
-    private void refreshPagesAndNavigation(@Nonnull ArrayList<Inventory> pages) {
+    private void refreshPagesAndNavigation(ArrayList<Inventory> pages) {
         int totalPages = pages.size();
         UUID playerId = getPlayerIdByInventory(pages);
 
@@ -574,13 +572,13 @@ public class VirtualBackpack implements Listener {
         }
     }
 
-    private boolean isBackpackInventory(@Nonnull Inventory inventory) {
+    private boolean isBackpackInventory(Inventory inventory) {
         return backpackInventories.contains(inventory);
     }
 
     /* ITEM MOVEMENT & OVERFLOW */
 
-    private void handleSlotItem(@Nonnull List<Inventory> pages, int pageIndex, int totalPages, UUID playerId) {
+    private void handleSlotItem(List<Inventory> pages, int pageIndex, int totalPages, UUID playerId) {
         if (pageIndex >= totalPages - 1) {
             handleOverflowItem(playerId, pages.get(pageIndex).getItem(NAV_NEXT_SLOT));
             pages.get(pageIndex).setItem(NAV_NEXT_SLOT, null);
@@ -645,14 +643,14 @@ public class VirtualBackpack implements Listener {
 
             Player player = Bukkit.getPlayer(playerId);
             if (player != null && player.isOnline()) {
-                player.sendMessage(Messages.get("itemOverflowed"));
+                player.sendMessage(Messages.get("itemsOverflowed"));
             }
         }
     }
 
     /* NAVIGATION & UI */
 
-    private void addNavigationItems(@Nonnull List<Inventory> pages) {
+    private void addNavigationItems(List<Inventory> pages) {
         int totalPages = pages.size();
         UUID playerId = getPlayerIdByInventory(pages);
 
@@ -684,7 +682,7 @@ public class VirtualBackpack implements Listener {
         }
     }
 
-    @Nonnull private ItemStack createNavigationItem(String displayName) {
+    private ItemStack createNavigationItem(String displayName) {
         ItemStack item = new ItemStack(Material.ARROW);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
@@ -695,7 +693,7 @@ public class VirtualBackpack implements Listener {
         return item;
     }
 
-    private void changePage(UUID targetId, int direction,@Nonnull Player viewer) {
+    private void changePage(UUID targetId, int direction, Player viewer) {
         ArrayList<Inventory> pages = getBackpackPages(targetId);
         int currentPageIndex = currentPageIndexMap.getOrDefault(targetId, 0);
         int newPageIndex = currentPageIndex + direction;
@@ -732,14 +730,14 @@ public class VirtualBackpack implements Listener {
                 meta.getPersistentDataContainer().has(NAV_KEY, PersistentDataType.BYTE);
     }
 
-    @Nullable private UUID getPlayerIdByInventory(List<Inventory> pages) {
+    private UUID getPlayerIdByInventory(List<Inventory> pages) {
         for (UUID id : backpacks.keySet()) {
             if (backpacks.get(id) == pages) return id;
         }
         return null;
     }
 
-    private void rebuildPageTitles(@Nonnull List<Inventory> pages) {
+    private void rebuildPageTitles(List<Inventory> pages) {
         int totalPages = pages.size();
         for (int i = 0; i < totalPages; i++) {
             Inventory old = pages.get(i);
@@ -765,11 +763,11 @@ public class VirtualBackpack implements Listener {
         adminViewers.put(admin.getUniqueId(), targetId);
     }
 
-    private void registerBackpackInventory(@Nonnull Inventory inventory) {
+    private void registerBackpackInventory(Inventory inventory) {
         backpackInventories.add(inventory);
     }
 
-    private void unregisterBackpackInventory(@Nonnull Inventory inventory) {
+    private void unregisterBackpackInventory(Inventory inventory) {
         backpackInventories.remove(inventory);
     }
 
