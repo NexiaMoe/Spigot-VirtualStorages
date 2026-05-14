@@ -25,6 +25,8 @@ VirtualStorages is a Minecraft Plugin designed to enhance storage capabilities f
 
 **Installation:**
 
+Requires Spigot 26.1.x and Java 25 or newer for version 1.5.0.0.
+
 1. **Download:**  
    - Get the latest version of VirtualStorages from the [releases page](https://github.com/852DuartePls/UNSTABLE-Spigot-VirtualStorages/releases).
    
