@@ -11,6 +11,7 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -219,11 +220,14 @@ public class VirtualBackpack implements Listener {
             return;
         }
 
+        int slot = event.getSlot();
         ItemStack clickedItem = event.getCurrentItem();
-        if (clickedItem == null || clickedItem.getType() != Material.ARROW) return;
-        if (!isNavigationItem(clickedItem)) return;
+        boolean navigationSlot = isNavigationSlot(slot);
+        boolean navigationItem = isNavigationItem(clickedItem);
 
         NavigationClickDecision decision = decideNavigationClick(
+                navigationSlot,
+                navigationItem,
                 event.getClick().isLeftClick(),
                 event.isShiftClick(),
                 event.getClick().isKeyboardClick()
@@ -232,8 +236,7 @@ public class VirtualBackpack implements Listener {
             event.setCancelled(true);
         }
 
-        int slot = event.getSlot();
-        if (slot != NAV_PREV_SLOT && slot != NAV_NEXT_SLOT) {
+        if (!navigationSlot || !navigationItem) {
             return;
         }
 
@@ -249,10 +252,43 @@ public class VirtualBackpack implements Listener {
         Bukkit.getScheduler().runTask(plugin, () -> player.openInventory(updatedPage));
     }
 
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onInventoryDrag(InventoryDragEvent event) {
+        if (!isBackpackInventory(event.getInventory())) {
+            return;
+        }
+
+        if (dragTouchesNavigationSlot(event.getRawSlots(), event.getInventory().getSize())) {
+            event.setCancelled(true);
+        }
+    }
+
     record NavigationClickDecision(boolean cancelClick, boolean changePage) { }
 
-    static NavigationClickDecision decideNavigationClick(boolean leftClick, boolean shiftClick, boolean keyboardClick) {
-        return new NavigationClickDecision(true, leftClick || shiftClick || keyboardClick);
+    static NavigationClickDecision decideNavigationClick(
+            boolean navigationSlot,
+            boolean navigationItem,
+            boolean leftClick,
+            boolean shiftClick,
+            boolean keyboardClick
+    ) {
+        boolean cancelClick = navigationSlot || navigationItem;
+        boolean changePage = navigationSlot && navigationItem && (leftClick || shiftClick);
+        return new NavigationClickDecision(cancelClick, changePage);
+    }
+
+    static boolean dragTouchesNavigationSlot(Set<Integer> rawSlots, int topInventorySize) {
+        for (int rawSlot : rawSlots) {
+            if (rawSlot >= 0 && rawSlot < topInventorySize && isNavigationSlot(rawSlot)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static boolean isNavigationSlot(int slot) {
+        return slot == NAV_PREV_SLOT || slot == NAV_NEXT_SLOT;
     }
 
     @EventHandler
