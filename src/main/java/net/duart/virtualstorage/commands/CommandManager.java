@@ -53,8 +53,19 @@ public class CommandManager implements CommandExecutor, TabCompleter {
                 return true;
             }
 
-            if (args.length == 0) {
-                admin.sendMessage(ChatColor.RED + "Usage: /backpackview <player>");
+            if (args.length == 0 || args.length > 2) {
+                admin.sendMessage(ChatColor.RED + "Usage: /backpackview <player> [edit]");
+                return true;
+            }
+
+            boolean editMode = args.length == 2 && args[1].equalsIgnoreCase("edit");
+            if (args.length == 2 && !editMode) {
+                admin.sendMessage(ChatColor.RED + "Usage: /backpackview <player> [edit]");
+                return true;
+            }
+
+            if (editMode && !admin.hasPermission("virtualstorages.admin.edit")) {
+                admin.sendMessage(Messages.get("noCommandPermission"));
                 return true;
             }
 
@@ -64,7 +75,7 @@ public class CommandManager implements CommandExecutor, TabCompleter {
                 return true;
             }
 
-            virtualBackpack.openTargetBackpack(admin, target);
+            virtualBackpack.openTargetBackpack(admin, target, editMode);
             return true;
         }
 
@@ -95,6 +106,17 @@ public class CommandManager implements CommandExecutor, TabCompleter {
                 if (p.getName().toLowerCase().startsWith(partial)) {
                     completions.add(p.getName());
                 }
+            }
+            return completions;
+        }
+
+        if (command.getName().equalsIgnoreCase("backpackview") &&
+                sender.hasPermission("virtualstorages.admin.edit") &&
+                args.length == 2) {
+
+            String partial = args[1].toLowerCase();
+            if ("edit".startsWith(partial)) {
+                completions.add("edit");
             }
             return completions;
         }

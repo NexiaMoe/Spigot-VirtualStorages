@@ -14,10 +14,18 @@ commands:
     aliases: [bp]
   backpackview:
     description: Allows the player to open another user's inventory.
-    usage: /backpackview <PlayerName>
+    usage: /backpackview <PlayerName> [edit]
     aliases: [bpview]
     permission: virtualstorages.admin
   vsreload:
     description: Reloads the language file.
     usage: /vsreload
     permission: virtualstorages.admin
+
+permissions:
+  virtualstorages.admin:
+    description: Allows administrative VirtualStorages commands.
+    default: op
+  virtualstorages.admin.edit:
+    description: Allows editable live backpack inspection with /backpackview <player> edit.
+    default: op

@@ -73,6 +73,28 @@ class VirtualBackpackTest {
         assertFalse(VirtualBackpack.dragTouchesNavigationSlot(Set.of(54, 53 + 54), 54));
     }
 
+    @Test
+    void readOnlyAdminBackpackClicksAreBlocked() {
+        assertTrue(VirtualBackpack.shouldCancelAdminBackpackEdit(false, true));
+    }
+
+    @Test
+    void editAdminBackpackClicksAreAllowed() {
+        assertFalse(VirtualBackpack.shouldCancelAdminBackpackEdit(true, true));
+    }
+
+    @Test
+    void readOnlyAdminBottomInventoryClicksAreBlockedWhileViewingBackpack() {
+        assertTrue(VirtualBackpack.shouldCancelAdminBackpackEdit(false, true));
+    }
+
+    @Test
+    void dragsTouchingTopInventoryAreDetected() {
+        assertTrue(VirtualBackpack.dragTouchesTopInventory(Set.of(0), 54));
+        assertTrue(VirtualBackpack.dragTouchesTopInventory(Set.of(53), 54));
+        assertFalse(VirtualBackpack.dragTouchesTopInventory(Set.of(54), 54));
+    }
+
     private static void assertNavigationClickChangesPage(boolean leftClick, boolean shiftClick, boolean keyboardClick) {
         VirtualBackpack.NavigationClickDecision decision =
                 VirtualBackpack.decideNavigationClick(true, true, true, leftClick, shiftClick, keyboardClick);

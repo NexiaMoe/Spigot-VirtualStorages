@@ -33,10 +33,10 @@ public class VirtualBackpack implements Listener {
 
     private final ConcurrentHashMap<UUID, Integer> currentPageIndexMap = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, ArrayList<Inventory>> backpacks = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<Player, Player> adminToTargetMap = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, UUID> adminViewTargets = new ConcurrentHashMap<>();
 
-    private final Set<UUID> playersWithOpenBackpack = new HashSet<>();
-    private final Map<UUID, UUID> adminViewers = new HashMap<>();
+    private final Set<UUID> playersWithOpenBackpack = ConcurrentHashMap.newKeySet();
+    private final Set<UUID> editableAdminViewers = ConcurrentHashMap.newKeySet();
     private final Set<Inventory> backpackInventories = new HashSet<>();
 
     private final FileHandlers fileHandlers;
@@ -56,13 +56,20 @@ public class VirtualBackpack implements Listener {
     public void openBackpack(Player player) {
         UUID playerId = player.getUniqueId();
 
-        if (isBackpackOpen(playerId)) {
+        if (playersWithOpenBackpack.contains(playerId)) {
             player.sendMessage(Messages.get("waitToOpen"));
             return;
         }
 
         currentPageIndexMap.put(playerId, 0);
         markBackpackOpen(player);
+
+        ArrayList<Inventory> loadedPages = backpacks.get(playerId);
+        if (loadedPages != null && !loadedPages.isEmpty()) {
+            refreshPagesAndNavigation(loadedPages);
+            player.openInventory(loadedPages.get(0));
+            return;
+        }
 
         File gzippedFile = new File(plugin.getDataFolder(), player.getName() + " - " + playerId + ".yml.gz");
         File yamlFile = new File(plugin.getDataFolder(), player.getName() + " - " + playerId + ".yml");
@@ -112,11 +119,10 @@ public class VirtualBackpack implements Listener {
             if (!pages.isEmpty()) {
                 player.openInventory(pages.get(0));
             }
-            adminToTargetMap.remove(player);
         }));
     }
 
-    public void openTargetBackpack(Player admin, Player target) {
+    public void openTargetBackpack(Player admin, Player target, boolean editMode) {
         boolean hasPermission = false;
 
         for (int i = 999; i >= 1; i--) {
@@ -133,12 +139,15 @@ public class VirtualBackpack implements Listener {
 
         UUID targetId = target.getUniqueId();
 
-        if (isBackpackOpen(targetId)) {
-            admin.sendMessage(Messages.get("backpackInUse"));
+        markAdminViewing(admin, targetId, editMode);
+        currentPageIndexMap.put(admin.getUniqueId(), 0);
+
+        ArrayList<Inventory> loadedPages = backpacks.get(targetId);
+        if (loadedPages != null && !loadedPages.isEmpty()) {
+            refreshPagesAndNavigation(loadedPages);
+            admin.openInventory(loadedPages.get(0));
             return;
         }
-
-        markAdminViewing(admin, targetId);
 
         File gzippedFile = new File(plugin.getDataFolder(), target.getName() + " - " + targetId + ".yml.gz");
         File yamlFile = new File(plugin.getDataFolder(), target.getName() + " - " + targetId + ".yml");
@@ -186,8 +195,6 @@ public class VirtualBackpack implements Listener {
             ensurePageCountMatchesPermissions(targetId, pages, true);
             refreshPagesAndNavigation(pages);
 
-            adminToTargetMap.put(admin, target);
-
             if (!pages.isEmpty()) {
                 admin.openInventory(pages.get(0));
             }
@@ -197,23 +204,48 @@ public class VirtualBackpack implements Listener {
     /* EVENTS */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onInventoryClick(InventoryClickEvent event) {
-        Player player = (Player) event.getWhoClicked();
-        UUID playerId = player.getUniqueId();
-        Inventory clickedInventory = event.getClickedInventory();
-
-        if (clickedInventory == null || !isBackpackInventory(clickedInventory)) {
+        if (!(event.getWhoClicked() instanceof Player player)) {
             return;
         }
 
-        UUID targetId = playerId;
-        UUID mapped = adminViewers.get(player.getUniqueId());
-        if (mapped != null) targetId = mapped;
-        else if (adminToTargetMap.containsKey(player)) {
-            targetId = adminToTargetMap.get(player).getUniqueId();
+        UUID playerId = player.getUniqueId();
+        Inventory topInventory = event.getView().getTopInventory();
+        Inventory clickedInventory = event.getClickedInventory();
+
+        if (!isBackpackInventory(topInventory)) {
+            return;
+        }
+
+        UUID targetId = getViewedTargetId(player);
+        boolean adminViewer = isAdminViewing(playerId);
+        boolean editableAdminViewer = isEditableAdminViewer(playerId);
+        boolean clickedTopInventory = clickedInventory != null && clickedInventory.equals(topInventory);
+
+        if (adminViewer && !clickedTopInventory && shouldCancelAdminBackpackEdit(editableAdminViewer, true)) {
+            event.setCancelled(true);
+            return;
+        }
+
+        if (clickedInventory == null) {
+            return;
+        }
+
+        if (!clickedTopInventory) {
+            if (event.isShiftClick()) {
+                event.setCancelled(true);
+            }
+            return;
         }
 
         ArrayList<Inventory> pages = getBackpackPages(targetId);
-        int currentPageIndex = currentPageIndexMap.getOrDefault(targetId, 0);
+        int currentPageIndex = currentPageIndexMap.getOrDefault(playerId, 0);
+        if (pages.isEmpty()) {
+            return;
+        }
+        if (currentPageIndex >= pages.size()) {
+            currentPageIndex = 0;
+            currentPageIndexMap.put(playerId, currentPageIndex);
+        }
         Inventory currentPage = pages.get(currentPageIndex);
 
         int slot = event.getSlot();
@@ -234,6 +266,11 @@ public class VirtualBackpack implements Listener {
             event.setCancelled(true);
         }
 
+        if (adminViewer && !navigationItem && shouldCancelAdminBackpackEdit(editableAdminViewer, true)) {
+            event.setCancelled(true);
+            return;
+        }
+
         if (!currentPageClick) {
             return;
         }
@@ -249,18 +286,27 @@ public class VirtualBackpack implements Listener {
         int direction = slot == NAV_PREV_SLOT ? -1 : 1;
         changePage(targetId, direction, player);
 
-        int updatedPageIndex = currentPageIndexMap.getOrDefault(targetId, 0);
+        int updatedPageIndex = currentPageIndexMap.getOrDefault(playerId, 0);
         Inventory updatedPage = getBackpackPages(targetId).get(updatedPageIndex);
         Bukkit.getScheduler().runTask(plugin, () -> player.openInventory(updatedPage));
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onInventoryDrag(InventoryDragEvent event) {
-        if (!isBackpackInventory(event.getInventory())) {
+        Inventory topInventory = event.getView().getTopInventory();
+        if (!isBackpackInventory(topInventory)) {
             return;
         }
 
-        if (dragTouchesNavigationSlot(event.getRawSlots(), event.getInventory().getSize())) {
+        UUID viewerId = event.getWhoClicked().getUniqueId();
+        if (isAdminViewing(viewerId) &&
+                shouldCancelAdminBackpackEdit(isEditableAdminViewer(viewerId), true) &&
+                dragTouchesTopInventory(event.getRawSlots(), topInventory.getSize())) {
+            event.setCancelled(true);
+            return;
+        }
+
+        if (dragTouchesNavigationSlot(event.getRawSlots(), topInventory.getSize())) {
             event.setCancelled(true);
         }
     }
@@ -290,6 +336,20 @@ public class VirtualBackpack implements Listener {
         return false;
     }
 
+    static boolean dragTouchesTopInventory(Set<Integer> rawSlots, int topInventorySize) {
+        for (int rawSlot : rawSlots) {
+            if (rawSlot >= 0 && rawSlot < topInventorySize) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    static boolean shouldCancelAdminBackpackEdit(boolean editMode, boolean backpackViewOpen) {
+        return backpackViewOpen && !editMode;
+    }
+
     private static boolean isNavigationSlot(int slot) {
         return slot == NAV_PREV_SLOT || slot == NAV_NEXT_SLOT;
     }
@@ -304,75 +364,22 @@ public class VirtualBackpack implements Listener {
             return;
         }
 
-        markBackpackClosed(player);
-
-        UUID targetId;
-        boolean isAdmin = false;
-        if (adminToTargetMap.containsKey(player)) {
-            targetId = adminToTargetMap.get(player).getUniqueId();
-            isAdmin = true;
-        } else {
-            targetId = playerId;
-        }
+        UUID targetId = getViewedTargetId(player);
 
         ArrayList<Inventory> pages = getBackpackPages(targetId);
-        int currentPageIndex = currentPageIndexMap.getOrDefault(targetId, 0);
+        int currentPageIndex = currentPageIndexMap.getOrDefault(playerId, 0);
 
         if (currentPageIndex >= pages.size() || !closedInventory.equals(pages.get(currentPageIndex))) {
             return;
         }
 
         pages.set(currentPageIndex, closedInventory);
+        markBackpackClosed(player);
 
-        if (isAdmin) {
-            int maxPages = getMaxPages(targetId);
-            List<ItemStack> overflowItems = new ArrayList<>();
-
-            for (int i = maxPages; i < pages.size(); i++) {
-                for (ItemStack item : pages.get(i).getContents()) {
-                    if (item != null && !isNavigationItem(item)) {
-                        overflowItems.add(item.clone());
-                    }
-                }
-            }
-
-            if (!overflowItems.isEmpty()) {
-                fileHandlers.saveOverflowItems(targetId, overflowItems);
-            } else {
-                try {
-                    Files.deleteIfExists(Paths.get(plugin.getDataFolder().getPath(), targetId + "-overflow-.yml.gz"));
-                } catch (IOException e) {
-                    plugin.getLogger().warning("Failed to delete overflow file for player: " + targetId);
-                }
-            }
-
-            ArrayList<Inventory> allowedPages = new ArrayList<>();
-            for (int i = 0; i < maxPages && i < pages.size(); i++) {
-                allowedPages.add(pages.get(i));
-            }
-            fileHandlers.saveBackpackInventoryForTarget(targetId, allowedPages);
-        } else {
-            fileHandlers.saveBackpackInventoryForTarget(targetId, pages);
-        }
-
-        currentPageIndexMap.put(targetId, 0);
-
-        boolean someoneElseViewing = false;
-        for (Inventory inv : pages) {
-            if (!inv.getViewers().isEmpty()) {
-                for (org.bukkit.entity.HumanEntity viewer : inv.getViewers()) {
-                    if (!viewer.getUniqueId().equals(player.getUniqueId())) {
-                        someoneElseViewing = true;
-                        break;
-                    }
-                }
-            }
-            if (someoneElseViewing) break;
-        }
-
-        if (!someoneElseViewing) {
+        if (!hasOtherViewers(pages, playerId)) {
+            saveBackpackPages(targetId, pages, true);
             Bukkit.getScheduler().runTaskLater(plugin, () -> {
-                if (!isBackpackOpen(targetId)) {
+                if (!hasOpenViewers(targetId)) {
                     unloadBackpack(targetId);
                 }
             }, 1L);
@@ -383,29 +390,23 @@ public class VirtualBackpack implements Listener {
     public void onPlayerQuit(org.bukkit.event.player.PlayerQuitEvent event) {
         Player player = event.getPlayer();
         UUID playerId = player.getUniqueId();
+        UUID targetId = getViewedTargetId(player);
+        boolean adminViewer = isAdminViewing(playerId);
 
         markBackpackClosed(player);
 
-        if (backpacks.containsKey(playerId)) {
-            ArrayList<Inventory> pages = backpacks.get(playerId);
-            fileHandlers.saveBackpackInventoryForTarget(playerId, pages);
-            unloadBackpack(playerId);
-        }
-
-        if (adminToTargetMap.containsKey(player)) {
-            Player target = adminToTargetMap.get(player);
-            UUID targetId = target.getUniqueId();
-
+        if (adminViewer) {
             ArrayList<Inventory> targetPages = backpacks.get(targetId);
-            if (targetPages != null) {
-                fileHandlers.saveBackpackInventoryForTarget(targetId, targetPages);
-            }
-
-            adminToTargetMap.remove(player);
-
-            if (!target.isOnline()) {
+            if (targetPages != null && !hasOpenViewers(targetId)) {
+                saveBackpackPages(targetId, targetPages, true);
                 unloadBackpack(targetId);
             }
+        }
+
+        if (backpacks.containsKey(playerId) && !hasOpenViewers(playerId)) {
+            ArrayList<Inventory> pages = backpacks.get(playerId);
+            saveBackpackPages(playerId, pages, true);
+            unloadBackpack(playerId);
         }
     }
 
@@ -553,12 +554,6 @@ public class VirtualBackpack implements Listener {
             }
         }
         return 1;
-    }
-
-    private boolean isBackpackOpen(UUID targetId) {
-        if (playersWithOpenBackpack.contains(targetId)) return true;
-
-        return adminViewers.containsValue(targetId);
     }
 
     /* INVENTORY MANAGEMENT */
@@ -745,14 +740,11 @@ public class VirtualBackpack implements Listener {
 
     private void changePage(UUID targetId, int direction, Player viewer) {
         ArrayList<Inventory> pages = getBackpackPages(targetId);
-        int currentPageIndex = currentPageIndexMap.getOrDefault(targetId, 0);
+        UUID viewerId = viewer.getUniqueId();
+        int currentPageIndex = currentPageIndexMap.getOrDefault(viewerId, 0);
         int newPageIndex = currentPageIndex + direction;
 
-        UUID mapped = adminViewers.get(viewer.getUniqueId());
-        boolean viewerIsAdminViewingTarget =
-                (mapped != null && mapped.equals(targetId)) ||
-                        (adminToTargetMap.containsKey(viewer) &&
-                                adminToTargetMap.get(viewer).getUniqueId().equals(targetId));
+        boolean viewerIsAdminViewingTarget = targetId.equals(adminViewTargets.get(viewerId));
 
         int allowedMax;
         if (viewerIsAdminViewingTarget) {
@@ -763,7 +755,7 @@ public class VirtualBackpack implements Listener {
         }
 
         if (newPageIndex >= 0 && newPageIndex < allowedMax) {
-            currentPageIndexMap.put(targetId, newPageIndex);
+            currentPageIndexMap.put(viewerId, newPageIndex);
         }
     }
 
@@ -787,6 +779,87 @@ public class VirtualBackpack implements Listener {
         return null;
     }
 
+    private UUID getViewedTargetId(Player viewer) {
+        return adminViewTargets.getOrDefault(viewer.getUniqueId(), viewer.getUniqueId());
+    }
+
+    private boolean isAdminViewing(UUID viewerId) {
+        return adminViewTargets.containsKey(viewerId);
+    }
+
+    private boolean isEditableAdminViewer(UUID viewerId) {
+        return editableAdminViewers.contains(viewerId);
+    }
+
+    private boolean hasOtherViewers(List<Inventory> pages, UUID closingViewerId) {
+        for (Inventory inv : pages) {
+            for (org.bukkit.entity.HumanEntity viewer : inv.getViewers()) {
+                if (!viewer.getUniqueId().equals(closingViewerId)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private boolean hasOpenViewers(UUID targetId) {
+        if (playersWithOpenBackpack.contains(targetId) || adminViewTargets.containsValue(targetId)) {
+            return true;
+        }
+
+        ArrayList<Inventory> pages = backpacks.get(targetId);
+        if (pages == null) {
+            return false;
+        }
+
+        for (Inventory inv : pages) {
+            if (!inv.getViewers().isEmpty()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void saveBackpackPages(UUID targetId, ArrayList<Inventory> pages, boolean splitOverflowPages) {
+        if (!splitOverflowPages) {
+            fileHandlers.saveBackpackInventoryForTarget(targetId, pages);
+            return;
+        }
+
+        int maxPages = Math.max(1, getMaxPages(targetId));
+        if (pages.size() <= maxPages) {
+            fileHandlers.saveBackpackInventoryForTarget(targetId, pages);
+            return;
+        }
+
+        List<ItemStack> overflowItems = new ArrayList<>();
+        for (int i = maxPages; i < pages.size(); i++) {
+            for (ItemStack item : pages.get(i).getContents()) {
+                if (item != null && !isNavigationItem(item)) {
+                    overflowItems.add(item.clone());
+                }
+            }
+        }
+
+        if (!overflowItems.isEmpty()) {
+            fileHandlers.saveOverflowItems(targetId, overflowItems);
+        } else {
+            try {
+                Files.deleteIfExists(Paths.get(plugin.getDataFolder().getPath(), targetId + "-overflow-.yml.gz"));
+            } catch (IOException e) {
+                plugin.getLogger().warning("Failed to delete overflow file for player: " + targetId);
+            }
+        }
+
+        ArrayList<Inventory> allowedPages = new ArrayList<>();
+        for (int i = 0; i < maxPages && i < pages.size(); i++) {
+            allowedPages.add(pages.get(i));
+        }
+        fileHandlers.saveBackpackInventoryForTarget(targetId, allowedPages);
+    }
+
     private void rebuildPageTitles(List<Inventory> pages) {
         int totalPages = pages.size();
         for (int i = 0; i < totalPages; i++) {
@@ -805,12 +878,21 @@ public class VirtualBackpack implements Listener {
     }
 
     private void markBackpackClosed(Player player) {
-        playersWithOpenBackpack.remove(player.getUniqueId());
-        adminViewers.remove(player.getUniqueId());
+        UUID playerId = player.getUniqueId();
+        playersWithOpenBackpack.remove(playerId);
+        adminViewTargets.remove(playerId);
+        editableAdminViewers.remove(playerId);
+        currentPageIndexMap.remove(playerId);
     }
 
-    private void markAdminViewing(Player admin, UUID targetId) {
-        adminViewers.put(admin.getUniqueId(), targetId);
+    private void markAdminViewing(Player admin, UUID targetId, boolean editMode) {
+        UUID adminId = admin.getUniqueId();
+        adminViewTargets.put(adminId, targetId);
+        if (editMode) {
+            editableAdminViewers.add(adminId);
+        } else {
+            editableAdminViewers.remove(adminId);
+        }
     }
 
     private void registerBackpackInventory(Inventory inventory) {
@@ -831,9 +913,14 @@ public class VirtualBackpack implements Listener {
             }
         }
 
-        adminViewers.entrySet().removeIf(entry ->
-                entry.getValue().equals(playerId)
-        );
+        adminViewTargets.entrySet().removeIf(entry -> {
+            boolean viewingTarget = entry.getValue().equals(playerId);
+            if (viewingTarget) {
+                editableAdminViewers.remove(entry.getKey());
+                currentPageIndexMap.remove(entry.getKey());
+            }
+            return viewingTarget;
+        });
 
         playersWithOpenBackpack.remove(playerId);
     }
@@ -853,7 +940,8 @@ public class VirtualBackpack implements Listener {
             }
         }
 
-        adminToTargetMap.clear();
+        adminViewTargets.clear();
+        editableAdminViewers.clear();
     }
 
     /* BACKUP & MAINTENANCE */
@@ -863,20 +951,10 @@ public class VirtualBackpack implements Listener {
     }
 
     public void saveAllBackpacks() {
-        if (!adminToTargetMap.isEmpty()) {
-            for (Player admin : adminToTargetMap.keySet()) {
-                Player target = adminToTargetMap.get(admin);
-                UUID targetId = target.getUniqueId();
-                ArrayList<Inventory> pages = getBackpackPages(targetId);
-                fileHandlers.saveBackpackInventoryForTarget(targetId, pages);
-            }
-        } else {
-            for (UUID playerId : backpacks.keySet()) {
-                Player player = Bukkit.getPlayer(playerId);
-                if (player != null) {
-                    ArrayList<Inventory> pages = backpacks.get(playerId);
-                    fileHandlers.saveBackpackInventory(player, playerId, pages);
-                }
+        for (UUID playerId : backpacks.keySet()) {
+            ArrayList<Inventory> pages = backpacks.get(playerId);
+            if (pages != null) {
+                fileHandlers.saveBackpackInventoryForTarget(playerId, pages);
             }
         }
     }
