@@ -216,24 +216,26 @@ public class VirtualBackpack implements Listener {
         int currentPageIndex = currentPageIndexMap.getOrDefault(targetId, 0);
         Inventory currentPage = pages.get(currentPageIndex);
 
-        if (event.getClickedInventory() == null || !event.getClickedInventory().equals(currentPage)) {
-            return;
-        }
-
         int slot = event.getSlot();
         ItemStack clickedItem = event.getCurrentItem();
         boolean navigationSlot = isNavigationSlot(slot);
         boolean navigationItem = isNavigationItem(clickedItem);
+        boolean currentPageClick = clickedInventory.equals(currentPage);
 
         NavigationClickDecision decision = decideNavigationClick(
                 navigationSlot,
                 navigationItem,
+                currentPageClick,
                 event.getClick().isLeftClick(),
                 event.isShiftClick(),
                 event.getClick().isKeyboardClick()
         );
         if (decision.cancelClick()) {
             event.setCancelled(true);
+        }
+
+        if (!currentPageClick) {
+            return;
         }
 
         if (!navigationSlot || !navigationItem) {
@@ -268,12 +270,13 @@ public class VirtualBackpack implements Listener {
     static NavigationClickDecision decideNavigationClick(
             boolean navigationSlot,
             boolean navigationItem,
+            boolean currentPageClick,
             boolean leftClick,
             boolean shiftClick,
             boolean keyboardClick
     ) {
         boolean cancelClick = navigationSlot || navigationItem;
-        boolean changePage = navigationSlot && navigationItem && (leftClick || shiftClick);
+        boolean changePage = currentPageClick && navigationSlot && navigationItem && (leftClick || shiftClick);
         return new NavigationClickDecision(cancelClick, changePage);
     }
 

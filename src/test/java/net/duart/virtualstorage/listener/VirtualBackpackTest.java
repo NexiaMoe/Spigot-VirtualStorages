@@ -12,7 +12,7 @@ class VirtualBackpackTest {
     @Test
     void rightClickingNavigationArrowCancelsWithoutChangingPage() {
         VirtualBackpack.NavigationClickDecision decision =
-                VirtualBackpack.decideNavigationClick(true, true, false, false, false);
+                VirtualBackpack.decideNavigationClick(true, true, true, false, false, false);
 
         assertTrue(decision.cancelClick());
         assertFalse(decision.changePage());
@@ -27,7 +27,7 @@ class VirtualBackpackTest {
     @Test
     void keyboardClicksOnNavigationArrowCancelWithoutChangingPage() {
         VirtualBackpack.NavigationClickDecision decision =
-                VirtualBackpack.decideNavigationClick(true, true, false, false, true);
+                VirtualBackpack.decideNavigationClick(true, true, true, false, false, true);
 
         assertTrue(decision.cancelClick());
         assertFalse(decision.changePage());
@@ -36,7 +36,7 @@ class VirtualBackpackTest {
     @Test
     void emptyNavigationSlotsCancelWithoutChangingPage() {
         VirtualBackpack.NavigationClickDecision decision =
-                VirtualBackpack.decideNavigationClick(true, false, true, false, false);
+                VirtualBackpack.decideNavigationClick(true, false, true, true, false, false);
 
         assertTrue(decision.cancelClick());
         assertFalse(decision.changePage());
@@ -45,7 +45,16 @@ class VirtualBackpackTest {
     @Test
     void regularItemsInNavigationSlotsCancelWithoutChangingPage() {
         VirtualBackpack.NavigationClickDecision decision =
-                VirtualBackpack.decideNavigationClick(true, false, false, false, false);
+                VirtualBackpack.decideNavigationClick(true, false, true, false, false, false);
+
+        assertTrue(decision.cancelClick());
+        assertFalse(decision.changePage());
+    }
+
+    @Test
+    void stalePageNavigationSlotClicksCancelWithoutChangingPage() {
+        VirtualBackpack.NavigationClickDecision decision =
+                VirtualBackpack.decideNavigationClick(true, true, false, true, false, false);
 
         assertTrue(decision.cancelClick());
         assertFalse(decision.changePage());
@@ -66,7 +75,7 @@ class VirtualBackpackTest {
 
     private static void assertNavigationClickChangesPage(boolean leftClick, boolean shiftClick, boolean keyboardClick) {
         VirtualBackpack.NavigationClickDecision decision =
-                VirtualBackpack.decideNavigationClick(true, true, leftClick, shiftClick, keyboardClick);
+                VirtualBackpack.decideNavigationClick(true, true, true, leftClick, shiftClick, keyboardClick);
 
         assertTrue(decision.cancelClick());
         assertTrue(decision.changePage());
