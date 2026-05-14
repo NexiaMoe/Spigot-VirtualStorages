@@ -19,6 +19,9 @@ repositories {
 
 dependencies {
     compileOnly 'org.spigotmc:spigot-api:26.1.2-R0.1-SNAPSHOT'
+    testImplementation 'org.spigotmc:spigot-api:26.1.2-R0.1-SNAPSHOT'
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.13.4'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
 def targetJavaVersion = 25
@@ -45,4 +48,8 @@ processResources {
     filesMatching('plugin.yml') {
         expand props
     }
+}
+
+test {
+    useJUnitPlatform()
 }

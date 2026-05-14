@@ -223,25 +223,36 @@ public class VirtualBackpack implements Listener {
         if (clickedItem == null || clickedItem.getType() != Material.ARROW) return;
         if (!isNavigationItem(clickedItem)) return;
 
+        NavigationClickDecision decision = decideNavigationClick(
+                event.getClick().isLeftClick(),
+                event.isShiftClick(),
+                event.getClick().isKeyboardClick()
+        );
+        if (decision.cancelClick()) {
+            event.setCancelled(true);
+        }
+
         int slot = event.getSlot();
         if (slot != NAV_PREV_SLOT && slot != NAV_NEXT_SLOT) {
             return;
         }
 
-        boolean isLeftClick = event.getClick().isLeftClick();
-        boolean isShiftClick = event.isShiftClick();
-        boolean isNumericKey = event.getClick().isKeyboardClick();
-        if (!isLeftClick && !isShiftClick && !isNumericKey) {
+        if (!decision.changePage()) {
             return;
         }
 
-        event.setCancelled(true);
         int direction = slot == NAV_PREV_SLOT ? -1 : 1;
         changePage(targetId, direction, player);
 
         int updatedPageIndex = currentPageIndexMap.getOrDefault(targetId, 0);
         Inventory updatedPage = getBackpackPages(targetId).get(updatedPageIndex);
         Bukkit.getScheduler().runTask(plugin, () -> player.openInventory(updatedPage));
+    }
+
+    record NavigationClickDecision(boolean cancelClick, boolean changePage) { }
+
+    static NavigationClickDecision decideNavigationClick(boolean leftClick, boolean shiftClick, boolean keyboardClick) {
+        return new NavigationClickDecision(true, leftClick || shiftClick || keyboardClick);
     }
 
     @EventHandler
